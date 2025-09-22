@@ -1,0 +1,10 @@
+﻿################################################################################
+# 此 .gitignore 文件已由 Microsoft(R) Visual Studio 自动创建。
+################################################################################
+
+/backend/obj
+/.vs
+/backend/bin
+/frontend/.next
+/frontend/node_modules
+/frontend/out
