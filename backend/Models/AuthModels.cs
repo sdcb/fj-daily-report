@@ -9,6 +9,9 @@ public class LoginRequest
 
     [JsonPropertyName("code")]
     public string? Code { get; set; }
+
+    [JsonPropertyName("origin")]
+    public string? Origin { get; set; }
 }
 
 public class LoginResponse

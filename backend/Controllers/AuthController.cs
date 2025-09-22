@@ -26,9 +26,9 @@ public class AuthController : ControllerBase
     }
 
     [HttpGet("keycloak/signin")]
-    public async Task<IActionResult> KeycloakSignIn(CancellationToken cancellationToken)
+    public async Task<IActionResult> KeycloakSignIn([FromQuery] string? origin, CancellationToken cancellationToken)
     {
-        var callbackUrl = _hostUrlService.GetKeycloakSsoRedirectUrl();
+        var callbackUrl = _hostUrlService.GetKeycloakSsoRedirectUrl(origin ?? string.Empty);
         var keycloakUrl = await _keycloakService.GenerateLoginUrl(callbackUrl, cancellationToken);
         return Redirect(keycloakUrl);
     }
@@ -38,7 +38,7 @@ public class AuthController : ControllerBase
     {
         if (request.Provider?.Equals("Keycloak", StringComparison.OrdinalIgnoreCase) == true && !string.IsNullOrEmpty(request.Code))
         {
-            var redirectUrl = _hostUrlService.GetKeycloakSsoRedirectUrl();
+            var redirectUrl = _hostUrlService.GetKeycloakSsoRedirectUrl(request.Origin ?? string.Empty);
             var tokenInfo = await _keycloakService.GetUserInfo(request.Code, redirectUrl, cancellationToken);
             var user = _userService.GetOrCreateUser(tokenInfo);
             var token = _jwtService.GenerateToken(user);

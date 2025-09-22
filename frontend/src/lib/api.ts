@@ -4,6 +4,7 @@ import { getApiUrl } from './config';
 export interface LoginRequest {
   provider?: string;
   code?: string;
+  origin?: string;
 }
 
 export interface LoginResponse {
@@ -68,7 +69,9 @@ export const authApi = {
 
   redirectToKeycloak: () => {
     if (typeof window !== 'undefined') {
-      window.location.href = `${getApiUrl()}/api/auth/keycloak/signin`;
+      const origin = window.location.origin;
+      const url = `${getApiUrl()}/api/auth/keycloak/signin?origin=${encodeURIComponent(origin)}`;
+      window.location.href = url;
     }
   }
 };

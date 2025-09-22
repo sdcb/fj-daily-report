@@ -33,6 +33,7 @@ export default function AuthorizingPage() {
     const loginRequest: LoginRequest = {
       code,
       provider,
+      origin: typeof window !== 'undefined' ? window.location.origin : undefined,
     };
 
     authApi.login(loginRequest)

@@ -29,15 +29,14 @@ public class HostUrlService
         var request = _httpContextAccessor.HttpContext!.Request;
         var headers = request.Headers;
         
-        // 首先尝试从Referer头获取，如果没有则使用配置文件中的FE_URL
-        if (headers.TryGetValue("Referer", out StringValues refererValue))
+        // 首先尝试从Origin头获取，如果没有则使用配置文件中的FE_URL
+        if (headers.TryGetValue("Origin", out StringValues originValue))
         {
-            var refererUrl = refererValue.FirstOrDefault();
-            if (!string.IsNullOrEmpty(refererUrl))
+            var originUrl = originValue.FirstOrDefault();
+            if (!string.IsNullOrEmpty(originUrl))
             {
-                // 从Referer URL中提取基础URL (scheme + host)
-                var uri = new Uri(refererUrl);
-                return $"{uri.Scheme}://{uri.Host}{(uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "")}";
+                // Origin头直接包含基础URL (scheme + host + port)
+                return originUrl;
             }
         }
         
@@ -54,5 +53,15 @@ public class HostUrlService
     public virtual string GetKeycloakSsoRedirectUrl()
     {
         return $"{GetFEUrl()}/authorizing?provider=Keycloak";
+    }
+
+    public virtual string GetKeycloakSsoRedirectUrl(string origin)
+    {
+        if (string.IsNullOrWhiteSpace(origin))
+        {
+            // fallback to original behavior if origin not supplied
+            return GetKeycloakSsoRedirectUrl();
+        }
+        return $"{origin}/authorizing?provider=Keycloak";
     }
 }
