@@ -29,17 +29,23 @@ public class HostUrlService
         var request = _httpContextAccessor.HttpContext!.Request;
         var headers = request.Headers;
         
-        // 首先尝试从Origin头获取，如果没有则使用配置文件中的FE_URL
-        if (headers.TryGetValue("Origin", out StringValues originValue))
+        // 首先尝试从Referer头获取，如果没有则使用配置文件中的FE_URL
+        if (headers.TryGetValue("Referer", out StringValues refererValue))
         {
-            return originValue.FirstOrDefault()!;
+            var refererUrl = refererValue.FirstOrDefault();
+            if (!string.IsNullOrEmpty(refererUrl))
+            {
+                // 从Referer URL中提取基础URL (scheme + host)
+                var uri = new Uri(refererUrl);
+                return $"{uri.Scheme}://{uri.Host}{(uri.Port != 80 && uri.Port != 443 ? $":{uri.Port}" : "")}";
+            }
         }
         
         // Fallback到配置文件中的前端URL
         var feUrl = _configuration["FE_URL"];
         if (string.IsNullOrEmpty(feUrl))
         {
-            throw new InvalidOperationException("Both Origin header and FE_URL configuration are missing");
+            throw new InvalidOperationException("Both Referer header and FE_URL configuration are missing");
         }
         
         return feUrl;

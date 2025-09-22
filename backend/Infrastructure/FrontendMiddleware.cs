@@ -31,36 +31,45 @@ public class FrontendMiddleware(RequestDelegate next, IWebHostEnvironment webHos
 
     static IEnumerable<string> EnumerateTryPaths(string requestPath)
     {
-        if (requestPath.EndsWith('/'))
+        // 规范化：始终以"/"开头
+        if (string.IsNullOrEmpty(requestPath))
+            yield break;
+
+        // 根路径直接回退到根 index.html
+        if (requestPath == "/")
         {
-            yield return requestPath + "index.html"; // example: /login -> /login/index.html
+            yield return "/index.html";
+            yield break;
         }
 
+        // 对于无扩展名的路由（SPA 页面），优先尝试 /path/index.html（配合 Next.js trailingSlash: true）
         if (!Path.HasExtension(requestPath))
         {
-            yield return requestPath + ".html"; // example: /login -> /login.html
+            string withSlash = requestPath.EndsWith('/') ? requestPath : requestPath + "/";
+            yield return withSlash + "index.html"; // 例如：/login -> /login/index.html
 
-            int lastIndexOfSlash = requestPath.LastIndexOf('/');
-            if (lastIndexOfSlash != -1)
-            {
-                string prefixPart = requestPath[..lastIndexOfSlash];
-                yield return prefixPart + ".html"; // example: /login/ -> /login.html
-                yield return prefixPart + "/[id].html";
-            }
+            // 兼容未开启 trailingSlash 的导出：/path.html
+            yield return requestPath + ".html"; // 例如：/login -> /login.html
         }
 
-        // 如果都没找到，尝试返回根目录的 index.html（用于 SPA 应用）
+        // 最终兜底到根 index.html（单页应用）
         yield return "/index.html";
     }
 
     private bool ShouldBypassProcessing(HttpContext context)
     {
-        return context.Request.Path.Value == null ||
-            context.Request.Path.StartsWithSegments("/api") ||
-            context.Request.Path.StartsWithSegments("/swagger") ||
-            context.Request.Path.StartsWithSegments("/v1") ||
+        var path = context.Request.Path;
+        return path.Value == null ||
+            // 后端与文档路由直接跳过
+            path.StartsWithSegments("/api") ||
+            path.StartsWithSegments("/swagger") ||
+            path.StartsWithSegments("/v1") ||
+            // Next 静态资源必须原样返回，不能回退到 index.html
+            path.StartsWithSegments("/_next") ||
+            // 仅处理 GET/HEAD
             !IsGetOrHeadMethod(context.Request.Method) ||
-            fileProvider.GetFileInfo(context.Request.Path).Exists;
+            // 已存在的静态文件直接交给 StaticFiles 处理
+            fileProvider.GetFileInfo(path).Exists;
     }
 
     private static bool IsGetOrHeadMethod(string method) => HttpMethods.IsGet(method) || HttpMethods.IsHead(method);
