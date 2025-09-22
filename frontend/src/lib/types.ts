@@ -10,4 +10,6 @@ export interface AuthContextType {
   login: (token: string, user: User) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  // 是否已从本地存储加载完成（避免刷新时误判未登录）
+  initialized: boolean;
 }

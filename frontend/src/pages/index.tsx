@@ -3,16 +3,18 @@ import { useRouter } from 'next/router';
 import { useAuth } from '@/lib/auth';
 
 export default function HomePage() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, initialized } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (!initialized) return; // 等待初始化
+
     if (isAuthenticated) {
       router.push('/dashboard');
     } else {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [initialized, isAuthenticated, router]);
 
   return (
     <div style={{ 

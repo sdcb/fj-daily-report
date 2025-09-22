@@ -18,6 +18,7 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     // 从localStorage加载认证信息
@@ -28,6 +29,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setToken(savedToken);
       setUser(JSON.parse(savedUser));
     }
+    // 标记初始化完成，避免页面在初始渲染时误判未登录
+    setInitialized(true);
   }, []);
 
   const login = (newToken: string, newUser: User) => {
@@ -50,6 +53,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout,
     isAuthenticated: !!token && !!user,
+    initialized,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

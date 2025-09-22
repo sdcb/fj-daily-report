@@ -5,14 +5,16 @@ import { useAuth } from '@/lib/auth';
 import { User } from '@/lib/types';
 
 export default function DashboardPage() {
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, initialized } = useAuth();
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
+    if (!initialized) return; // 等待Auth初始化结束
+
     if (!isAuthenticated) {
-      router.push('/login');
+      router.replace('/login');
       return;
     }
 
@@ -21,12 +23,16 @@ export default function DashboardPage() {
       .then(setAllUsers)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [isAuthenticated, router]);
+  }, [initialized, isAuthenticated, router]);
 
   const handleLogout = () => {
     logout();
     router.push('/login');
   };
+
+  if (!initialized) {
+    return null; // 初始化期间不渲染，避免闪跳
+  }
 
   if (!isAuthenticated) {
     return null;
