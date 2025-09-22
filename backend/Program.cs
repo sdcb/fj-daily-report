@@ -1,3 +1,4 @@
+using FjDailyReport.Infrastructure;
 using FjDailyReport.Models;
 using FjDailyReport.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -73,5 +74,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// 使用前端中间件（在路由之后，这样当路由没有匹配时才会处理前端页面）
+app.UseMiddleware<FrontendMiddleware>();
+app.UseStaticFiles();
 
 app.Run();
