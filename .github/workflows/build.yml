@@ -1,0 +1,169 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # 第一步：构建前端并上传 artifact
+  build-fe:
+    runs-on: ubuntu-22.04
+    outputs:
+      full_ver: ${{ steps.get_version.outputs.full_ver }}
+      patch_full_ver: ${{ steps.get_version.outputs.patch_full_ver }}
+      minor_full_ver: ${{ steps.get_version.outputs.minor_full_ver }}
+      major_ver: ${{ steps.get_version.outputs.major_ver }}
+      msbuild_args: ${{ steps.get_version.outputs.msbuild_args }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 缓存前端构建产物
+      - name: Cache FE build output
+        id: fe_build_cache
+        uses: actions/cache@v4
+        with:
+          path: ./frontend/out
+          key: ${{ runner.os }}-fe-build-${{ hashFiles('frontend/**/*.json', 'frontend/**/*.tsx', 'frontend/**/*.ts', 'frontend/**/*.css') }}
+
+      # 缓存前端 node_modules
+      - name: Cache node_modules
+        id: node_modules_cache
+        if: steps.fe_build_cache.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ./frontend/node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('frontend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      # 安装前端依赖
+      - name: Install frontend dependencies
+        if: steps.fe_build_cache.outputs.cache-hit != 'true' && steps.node_modules_cache.outputs.cache-hit != 'true'
+        working-directory: ./frontend
+        run: npm ci
+
+      # 构建前端
+      - name: Build frontend
+        if: steps.fe_build_cache.outputs.cache-hit != 'true'
+        working-directory: ./frontend
+        run: npm run build
+
+      # 获取版本信息
+      - name: Get version
+        id: get_version
+        run: |
+          cd ./backend
+          # 从项目文件获取版本，如果没有则使用默认值
+          ver=$(grep -oPm1 "(?<=<Version>)[^<]+" FjDailyReport.csproj || echo "1.0.0")
+          minor_ver=$(echo $ver | cut -d '.' -f 1-2)
+          major_ver=$(echo $ver | cut -d '.' -f 1)
+          full_ver=${ver}.${{ github.run_number }}
+          
+          echo "full_ver=${full_ver}" >> $GITHUB_OUTPUT
+          echo "patch_full_ver=${ver}" >> $GITHUB_OUTPUT
+          echo "minor_full_ver=${minor_ver}" >> $GITHUB_OUTPUT
+          echo "major_ver=${major_ver}" >> $GITHUB_OUTPUT
+          echo "msbuild_args=/p:Version=${full_ver} /p:AssemblyVersion=${full_ver} /p:FileVersion=${full_ver} /p:InformationalVersion=${full_ver}" >> $GITHUB_OUTPUT
+
+      # 将前端构建产物复制到后端wwwroot目录
+      - name: Copy frontend build to backend
+        run: |
+          mkdir -p ./backend/wwwroot
+          cp -r ./frontend/out/* ./backend/wwwroot/ || cp -r ./frontend/.next/standalone/* ./backend/wwwroot/ || cp -r ./frontend/dist/* ./backend/wwwroot/ || echo "Frontend build output not found in expected locations"
+          ls -la ./backend/wwwroot
+
+      # 上传前端构建产物
+      - name: Upload FE build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fe-build
+          path: ./frontend/out
+
+      # 上传后端源码（包含 wwwroot）
+      - name: Upload BE src folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: be-src
+          path: ./backend
+
+  # 第二步：构建 Docker 镜像并推送到 ghcr.io
+  build-docker:
+    needs: build-fe
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download BE src folder
+        uses: actions/download-artifact@v4
+        with:
+          name: be-src
+          path: ./backend
+
+      # 登录 GitHub Container Registry
+      - name: Login to GitHub Container Registry
+        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      # 使用 .NET PublishContainer 构建并推送 Docker 镜像
+      - name: Build and push Docker container
+        run: |
+          dotnet publish ./backend/FjDailyReport.csproj -c Release --os linux --arch x64 /t:PublishContainer /p:ContainerRepository=ghcr.io/${{ github.repository_owner }}/fj-daily-report ${{ needs.build-fe.outputs.msbuild_args }}
+
+      # 标记并推送多个版本标签
+      - name: Tag and push multiple versions
+        run: |
+          docker tag ghcr.io/${{ github.repository_owner }}/fj-daily-report:latest ghcr.io/${{ github.repository_owner }}/fj-daily-report:${{ needs.build-fe.outputs.full_ver }}
+          docker tag ghcr.io/${{ github.repository_owner }}/fj-daily-report:latest ghcr.io/${{ github.repository_owner }}/fj-daily-report:${{ needs.build-fe.outputs.patch_full_ver }}
+          docker tag ghcr.io/${{ github.repository_owner }}/fj-daily-report:latest ghcr.io/${{ github.repository_owner }}/fj-daily-report:${{ needs.build-fe.outputs.minor_full_ver }}
+          docker tag ghcr.io/${{ github.repository_owner }}/fj-daily-report:latest ghcr.io/${{ github.repository_owner }}/fj-daily-report:${{ needs.build-fe.outputs.major_ver }}
+          
+          docker push ghcr.io/${{ github.repository_owner }}/fj-daily-report:${{ needs.build-fe.outputs.full_ver }}
+          docker push ghcr.io/${{ github.repository_owner }}/fj-daily-report:${{ needs.build-fe.outputs.patch_full_ver }}
+          docker push ghcr.io/${{ github.repository_owner }}/fj-daily-report:${{ needs.build-fe.outputs.minor_full_ver }}
+          docker push ghcr.io/${{ github.repository_owner }}/fj-daily-report:${{ needs.build-fe.outputs.major_ver }}
+          docker push ghcr.io/${{ github.repository_owner }}/fj-daily-report:latest
+
+      # 输出部署信息
+      - name: Output deployment info
+        run: |
+          echo "🎉 Docker 部署完成！"
+          echo "Docker 镜像已推送到 GitHub Container Registry："
+          echo "  - ghcr.io/${{ github.repository_owner }}/fj-daily-report:latest"
+          echo "  - ghcr.io/${{ github.repository_owner }}/fj-daily-report:${{ needs.build-fe.outputs.full_ver }}"
+          echo "  - ghcr.io/${{ github.repository_owner }}/fj-daily-report:${{ needs.build-fe.outputs.patch_full_ver }}"
+          echo "  - ghcr.io/${{ github.repository_owner }}/fj-daily-report:${{ needs.build-fe.outputs.minor_full_ver }}"
+          echo "  - ghcr.io/${{ github.repository_owner }}/fj-daily-report:${{ needs.build-fe.outputs.major_ver }}"
+
+  # 第三步：构建 Windows 可执行文件并上传到 artifact
+  build-windows-exe:
+    needs: build-fe
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download BE src folder
+        uses: actions/download-artifact@v4
+        with:
+          name: be-src
+          path: ./backend
+
+      # 构建 Windows x64 可执行文件
+      - name: Build Windows x64 executable
+        run: |
+          dotnet publish ./backend/FjDailyReport.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:PublishReadyToRun=true -o ./publish-win-x64 ${{ needs.build-fe.outputs.msbuild_args }}
+
+      # 上传 Windows 可执行文件
+      - name: Upload Windows x64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fj-daily-report-win-x64
+          path: ./publish-win-x64
+
+      # 输出构建信息
+      - name: Output build info
+        run: |
+          echo "🎉 Windows 可执行文件构建完成！"
+          echo "版本: ${{ needs.build-fe.outputs.full_ver }}"
+          ls -la ./publish-win-x64
