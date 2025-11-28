@@ -49,6 +49,12 @@ jobs:
         working-directory: ./frontend
         run: npm ci
 
+      # 删除开发环境配置文件
+      - name: Remove .env.development
+        if: steps.fe_build_cache.outputs.cache-hit != 'true'
+        working-directory: ./frontend
+        run: rm -f .env.development
+
       # 构建前端
       - name: Build frontend
         if: steps.fe_build_cache.outputs.cache-hit != 'true'
