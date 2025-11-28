@@ -1,23 +1,24 @@
+using FjDailyReport.DB;
 using FjDailyReport.Models;
-using System.Collections.Concurrent;
+using Microsoft.EntityFrameworkCore;
 
 namespace FjDailyReport.Services;
 
 /// <summary>
-/// 简单的内存用户存储服务，实际项目中应该使用数据库
+/// 用户服务，通过数据库管理用户数据
 /// </summary>
-public class UserService
+public class UserService(AppDB db)
 {
-    private readonly ConcurrentDictionary<string, User> _users = new();
-
-    public User GetOrCreateUser(AccessTokenInfo tokenInfo)
+    public async Task<User> GetOrCreateUserAsync(AccessTokenInfo tokenInfo)
     {
         var userId = tokenInfo.Sub;
-        
-        if (_users.TryGetValue(userId, out var existingUser))
+
+        var existingUser = await db.Users.FindAsync(userId);
+        if (existingUser != null)
         {
             // 更新最后登录时间
             existingUser.LastLoginAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
             return existingUser;
         }
 
@@ -31,18 +32,18 @@ public class UserService
             LastLoginAt = DateTime.UtcNow
         };
 
-        _users.TryAdd(userId, newUser);
+        db.Users.Add(newUser);
+        await db.SaveChangesAsync();
         return newUser;
     }
 
-    public User? GetUserById(string userId)
+    public async Task<User?> GetUserByIdAsync(string userId)
     {
-        _users.TryGetValue(userId, out var user);
-        return user;
+        return await db.Users.FindAsync(userId);
     }
 
-    public IEnumerable<User> GetAllUsers()
+    public async Task<List<User>> GetAllUsersAsync()
     {
-        return _users.Values.ToList();
+        return await db.Users.ToListAsync();
     }
 }

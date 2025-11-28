@@ -1,3 +1,4 @@
+using FjDailyReport.DB;
 using FjDailyReport.Infrastructure;
 using FjDailyReport.Models;
 using FjDailyReport.Services;
@@ -12,6 +13,12 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Add database context
+builder.Services.AddDbContext<AppDB>(options =>
+{
+    options.Configure(builder.Configuration, builder.Environment);
+});
+
 // Add HTTP client
 builder.Services.AddHttpClient();
 
@@ -20,7 +27,7 @@ builder.Services.AddHttpContextAccessor();
 
 // Add custom services
 builder.Services.AddSingleton<JwtService>();
-builder.Services.AddSingleton<UserService>();
+builder.Services.AddScoped<UserService>();
 builder.Services.AddSingleton<HostUrlService>();
 builder.Services.AddScoped<KeycloakService>();
 builder.Services.Configure<KeycloakConfig>(builder.Configuration.GetSection("Keycloak"));
@@ -61,6 +68,13 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// 自动创建/迁移数据库
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDB>();
+    db.Database.EnsureCreated();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
