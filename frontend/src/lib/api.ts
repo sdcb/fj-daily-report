@@ -1,5 +1,6 @@
 import axios, { AxiosResponse, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { getApiUrl } from './config';
+import { DailyReportsResponse, DailyReportDto } from './types';
 
 export interface LoginRequest {
   provider?: string;
@@ -20,6 +21,12 @@ export interface UserProfile {
   id: string;
   email: string;
   displayName: string;
+}
+
+export interface UpdateDailyReportRequest {
+  userId: string;
+  date: string;
+  content: string;
 }
 
 const api = axios.create({
@@ -73,6 +80,19 @@ export const authApi = {
       const url = `${getApiUrl()}/api/auth/keycloak/signin?origin=${encodeURIComponent(origin)}`;
       window.location.href = url;
     }
+  }
+};
+
+export const dailyReportApi = {
+  getDailyReports: async (date?: string): Promise<DailyReportsResponse> => {
+    const params = date ? { date } : {};
+    const response = await api.get('/api/daily-report', { params });
+    return response.data;
+  },
+
+  updateDailyReport: async (request: UpdateDailyReportRequest): Promise<DailyReportDto> => {
+    const response = await api.post('/api/daily-report', request);
+    return response.data;
   }
 };
 
