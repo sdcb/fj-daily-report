@@ -40,7 +40,7 @@ public class AuthController : ControllerBase
         {
             var redirectUrl = _hostUrlService.GetKeycloakSsoRedirectUrl(request.Origin ?? string.Empty);
             var tokenInfo = await _keycloakService.GetUserInfo(request.Code, redirectUrl, cancellationToken);
-            var user = _userService.GetOrCreateUser(tokenInfo);
+            var user = await _userService.GetOrCreateUserAsync(tokenInfo);
             var token = _jwtService.GenerateToken(user);
 
             return Ok(new LoginResponse

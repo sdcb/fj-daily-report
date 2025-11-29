@@ -1,3 +1,5 @@
+using FjDailyReport.DB;
+using FjDailyReport.Hubs;
 using FjDailyReport.Infrastructure;
 using FjDailyReport.Models;
 using FjDailyReport.Services;
@@ -12,6 +14,12 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Add database context
+builder.Services.AddDbContext<AppDB>(options =>
+{
+    options.Configure(builder.Configuration, builder.Environment);
+});
+
 // Add HTTP client
 builder.Services.AddHttpClient();
 
@@ -20,10 +28,13 @@ builder.Services.AddHttpContextAccessor();
 
 // Add custom services
 builder.Services.AddSingleton<JwtService>();
-builder.Services.AddSingleton<UserService>();
+builder.Services.AddScoped<UserService>();
 builder.Services.AddSingleton<HostUrlService>();
 builder.Services.AddScoped<KeycloakService>();
 builder.Services.Configure<KeycloakConfig>(builder.Configuration.GetSection("Keycloak"));
+
+// Add SignalR
+builder.Services.AddSignalR();
 
 // Configure JWT authentication
 var jwtSecretKey = builder.Configuration["JwtSecretKey"] ?? throw new InvalidOperationException("JwtSecretKey is required");
@@ -42,6 +53,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = "sso-template",
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
+        };
+
+        // 支持 SignalR 从 query string 获取 token
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
         };
     });
 
@@ -62,6 +88,13 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// 自动创建/迁移数据库
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDB>();
+    db.Database.EnsureCreated();
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -74,6 +107,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<DailyReportHub>("/hubs/daily-report");
 
 // 使用前端中间件（在路由之后，这样当路由没有匹配时才会处理前端页面）
 app.UseMiddleware<FrontendMiddleware>();

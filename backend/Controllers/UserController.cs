@@ -19,7 +19,7 @@ public class UserController : ControllerBase
     }
 
     [HttpGet("profile")]
-    public ActionResult<UserInfo> GetProfile()
+    public async Task<ActionResult<UserInfo>> GetProfile()
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId))
@@ -27,7 +27,7 @@ public class UserController : ControllerBase
             return Unauthorized();
         }
 
-        var user = _userService.GetUserById(userId);
+        var user = await _userService.GetUserByIdAsync(userId);
         if (user == null)
         {
             return NotFound();
@@ -42,9 +42,9 @@ public class UserController : ControllerBase
     }
 
     [HttpGet("all")]
-    public ActionResult<IEnumerable<UserInfo>> GetAllUsers()
+    public async Task<ActionResult<IEnumerable<UserInfo>>> GetAllUsers()
     {
-        var users = _userService.GetAllUsers().Select(user => new UserInfo
+        var users = (await _userService.GetAllUsersAsync()).Select(user => new UserInfo
         {
             Id = user.Id,
             Email = user.Email,

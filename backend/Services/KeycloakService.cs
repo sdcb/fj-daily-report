@@ -21,7 +21,8 @@ public class KeycloakService
     {
         var config = await LoadWellknown(cancellationToken);
         var scope = "openid";
-        return $"{config.AuthorizationEndpoint}?client_id={_config.ClientId}&redirect_uri={redirectUrl}&response_type=code&scope={scope}";
+        var encodedRedirectUrl = Uri.EscapeDataString(redirectUrl);
+        return $"{config.AuthorizationEndpoint}?client_id={_config.ClientId}&redirect_uri={encodedRedirectUrl}&response_type=code&scope={scope}";
     }
 
     public async Task<AccessTokenInfo> GetUserInfo(string code, string redirectUrl, CancellationToken cancellationToken = default)
