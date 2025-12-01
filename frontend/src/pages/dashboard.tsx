@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { dailyReportApi } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -6,22 +6,42 @@ import { getApiUrl } from '@/lib/config';
 import { ProjectGroupDto, DailyReportDto } from '@/lib/types';
 import * as signalR from '@microsoft/signalr';
 
+function getTodayDate(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
 export default function DashboardPage() {
   const { user, logout, isAuthenticated, initialized } = useAuth();
+  const router = useRouter();
   const [groups, setGroups] = useState<ProjectGroupDto[]>([]);
   const [reports, setReports] = useState<DailyReportDto[]>([]);
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
   const [loading, setLoading] = useState(true);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
   const [editLeaveStatus, setEditLeaveStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const router = useRouter();
   const connectionRef = useRef<signalR.HubConnection | null>(null);
   const previousDateRef = useRef<string | null>(null);
+
+  // 从 URL 获取日期，没有参数时默认为今天
+  const selectedDate = useMemo(() => {
+    const dateParam = router.query.date;
+    if (typeof dateParam === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      return dateParam;
+    }
+    return getTodayDate();
+  }, [router.query.date]);
+
+  // 更新 URL 中的日期
+  const setSelectedDate = useCallback((date: string) => {
+    const today = getTodayDate();
+    if (date === today) {
+      // 如果是今天，移除 date 参数
+      router.push('/dashboard', undefined, { shallow: true });
+    } else {
+      router.push(`/dashboard?date=${date}`, undefined, { shallow: true });
+    }
+  }, [router]);
 
   // 获取日报数据
   const fetchDailyReports = useCallback(async (date: string) => {
@@ -39,7 +59,7 @@ export default function DashboardPage() {
 
   // SignalR 连接
   useEffect(() => {
-    if (!initialized || !isAuthenticated) return;
+    if (!initialized || !isAuthenticated || !router.isReady) return;
 
     const token = localStorage.getItem('auth_token');
     if (!token) return;
@@ -91,13 +111,13 @@ export default function DashboardPage() {
 
   // 获取数据
   useEffect(() => {
-    if (!initialized) return;
+    if (!initialized || !router.isReady) return;
     if (!isAuthenticated) {
       router.replace('/login');
       return;
     }
     fetchDailyReports(selectedDate);
-  }, [initialized, isAuthenticated, selectedDate, router, fetchDailyReports]);
+  }, [initialized, isAuthenticated, selectedDate, router, router.isReady, fetchDailyReports]);
 
   const handleLogout = () => {
     logout();
@@ -107,7 +127,8 @@ export default function DashboardPage() {
   const handleDateChange = (offset: number) => {
     const date = new Date(selectedDate);
     date.setDate(date.getDate() + offset);
-    setSelectedDate(date.toISOString().split('T')[0]);
+    const newDate = date.toISOString().split('T')[0];
+    setSelectedDate(newDate);
     setEditingUserId(null);
   };
 
@@ -148,7 +169,7 @@ export default function DashboardPage() {
     setEditLeaveStatus(null);
   };
 
-  if (!initialized) {
+  if (!initialized || !router.isReady) {
     return null;
   }
 
@@ -226,7 +247,7 @@ export default function DashboardPage() {
           </button>
           <button 
             onClick={() => {
-              setSelectedDate(new Date().toISOString().split('T')[0]);
+              setSelectedDate(getTodayDate());
               setEditingUserId(null);
             }}
             style={{
