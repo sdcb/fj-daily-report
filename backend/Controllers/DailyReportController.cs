@@ -52,6 +52,7 @@ public class DailyReportController(AppDB db, IHubContext<DailyReportHub> hubCont
                 UserDisplayName = r.User.DisplayName,
                 Date = r.Date.ToString("yyyy-MM-dd"),
                 Content = r.Content,
+                LeaveStatus = r.LeaveStatus,
                 UpdatedAt = r.UpdatedAt
             })
             .ToListAsync();
@@ -83,6 +84,7 @@ public class DailyReportController(AppDB db, IHubContext<DailyReportHub> hubCont
         {
             // 更新现有日报
             existingReport.Content = request.Content;
+            existingReport.LeaveStatus = request.LeaveStatus;
             existingReport.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync();
 
@@ -93,6 +95,7 @@ public class DailyReportController(AppDB db, IHubContext<DailyReportHub> hubCont
                 UserDisplayName = existingReport.User.DisplayName,
                 Date = existingReport.Date.ToString("yyyy-MM-dd"),
                 Content = existingReport.Content,
+                LeaveStatus = existingReport.LeaveStatus,
                 UpdatedAt = existingReport.UpdatedAt
             };
         }
@@ -111,6 +114,7 @@ public class DailyReportController(AppDB db, IHubContext<DailyReportHub> hubCont
                 UserId = request.UserId,
                 Date = targetDate,
                 Content = request.Content,
+                LeaveStatus = request.LeaveStatus,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -125,6 +129,7 @@ public class DailyReportController(AppDB db, IHubContext<DailyReportHub> hubCont
                 UserDisplayName = user.DisplayName,
                 Date = newReport.Date.ToString("yyyy-MM-dd"),
                 Content = newReport.Content,
+                LeaveStatus = newReport.LeaveStatus,
                 UpdatedAt = newReport.UpdatedAt
             };
         }

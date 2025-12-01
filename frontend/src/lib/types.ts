@@ -20,6 +20,8 @@ export interface DailyReportDto {
   userDisplayName: string;
   date: string;
   content: string;
+  /** 请假状态: null=不请假, "off"=全天请假, "AM leave"=上午请假, "PM leave"=下午请假 */
+  leaveStatus: string | null;
   updatedAt: string;
 }
 

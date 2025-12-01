@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
+  const [editLeaveStatus, setEditLeaveStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const router = useRouter();
   const connectionRef = useRef<signalR.HubConnection | null>(null);
@@ -118,6 +119,7 @@ export default function DashboardPage() {
     const report = getUserReport(userId);
     setEditingUserId(userId);
     setEditContent(report?.content || '');
+    setEditLeaveStatus(report?.leaveStatus || null);
   };
 
   const handleSave = async () => {
@@ -128,7 +130,8 @@ export default function DashboardPage() {
       await dailyReportApi.updateDailyReport({
         userId: editingUserId,
         date: selectedDate,
-        content: editContent
+        content: editContent,
+        leaveStatus: editLeaveStatus
       });
       setEditingUserId(null);
     } catch (error) {
@@ -142,6 +145,7 @@ export default function DashboardPage() {
   const handleCancel = () => {
     setEditingUserId(null);
     setEditContent('');
+    setEditLeaveStatus(null);
   };
 
   if (!initialized) {
@@ -154,22 +158,91 @@ export default function DashboardPage() {
 
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Header */}
+      {/* Header with Date Selector */}
       <header style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
         marginBottom: '20px',
-        padding: '16px 20px',
+        padding: '12px 20px',
         backgroundColor: '#f8f9fa',
-        borderRadius: '8px'
+        borderRadius: '8px',
+        gap: '16px'
       }}>
-        <div>
+        <div style={{ minWidth: '150px' }}>
           <h1 style={{ margin: 0, fontSize: '20px' }}>日报系统</h1>
           <p style={{ margin: '4px 0 0 0', color: '#666', fontSize: '14px' }}>
             {user?.displayName} ({user?.email})
           </p>
         </div>
+
+        {/* Date Selector */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '8px'
+        }}>
+          <button 
+            onClick={() => handleDateChange(-1)}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            ← 前一天
+          </button>
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => {
+              setSelectedDate(e.target.value);
+              setEditingUserId(null);
+            }}
+            style={{
+              padding: '6px 10px',
+              fontSize: '14px',
+              border: '1px solid #ccc',
+              borderRadius: '4px'
+            }}
+          />
+          <button 
+            onClick={() => handleDateChange(1)}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            后一天 →
+          </button>
+          <button 
+            onClick={() => {
+              setSelectedDate(new Date().toISOString().split('T')[0]);
+              setEditingUserId(null);
+            }}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            今天
+          </button>
+        </div>
+
         <button 
           onClick={handleLogout}
           style={{
@@ -178,82 +251,13 @@ export default function DashboardPage() {
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            minWidth: '80px'
           }}
         >
           退出登录
         </button>
       </header>
-
-      {/* Date Selector */}
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        gap: '16px',
-        marginBottom: '24px',
-        padding: '12px',
-        backgroundColor: '#fff',
-        border: '1px solid #ddd',
-        borderRadius: '8px'
-      }}>
-        <button 
-          onClick={() => handleDateChange(-1)}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          ← 前一天
-        </button>
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => {
-            setSelectedDate(e.target.value);
-            setEditingUserId(null);
-          }}
-          style={{
-            padding: '8px 12px',
-            fontSize: '16px',
-            border: '1px solid #ccc',
-            borderRadius: '4px'
-          }}
-        />
-        <button 
-          onClick={() => handleDateChange(1)}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          后一天 →
-        </button>
-        <button 
-          onClick={() => {
-            setSelectedDate(new Date().toISOString().split('T')[0]);
-            setEditingUserId(null);
-          }}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#007bff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          今天
-        </button>
-      </div>
 
       {/* Main Content */}
       {loading ? (
@@ -346,6 +350,25 @@ export default function DashboardPage() {
                           {/* Report Content */}
                           {isEditing ? (
                             <div>
+                              {/* 请假状态选择 */}
+                              <div style={{ marginBottom: '8px' }}>
+                                <label style={{ fontSize: '14px', marginRight: '8px' }}>请假状态：</label>
+                                <select
+                                  value={editLeaveStatus || ''}
+                                  onChange={(e) => setEditLeaveStatus(e.target.value || null)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    border: '1px solid #ccc',
+                                    borderRadius: '4px',
+                                    fontSize: '14px'
+                                  }}
+                                >
+                                  <option value="">不请假</option>
+                                  <option value="off">全天请假</option>
+                                  <option value="AM leave">上午请假</option>
+                                  <option value="PM leave">下午请假</option>
+                                </select>
+                              </div>
                               <textarea
                                 value={editContent}
                                 onChange={(e) => setEditContent(e.target.value)}
@@ -400,16 +423,35 @@ export default function DashboardPage() {
                               </div>
                             </div>
                           ) : (
-                            <div style={{
-                              padding: '8px',
-                              backgroundColor: 'white',
-                              borderRadius: '4px',
-                              minHeight: '40px',
-                              whiteSpace: 'pre-wrap',
-                              color: report?.content ? '#333' : '#999',
-                              fontStyle: report?.content ? 'normal' : 'italic'
-                            }}>
-                              {report?.content || '暂无日报'}
+                            <div>
+                              {/* 请假状态显示 */}
+                              {report?.leaveStatus && (
+                                <div style={{
+                                  marginBottom: '8px',
+                                  display: 'inline-block',
+                                  padding: '4px 8px',
+                                  backgroundColor: report.leaveStatus === 'off' ? '#dc3545' : '#ffc107',
+                                  color: report.leaveStatus === 'off' ? 'white' : '#333',
+                                  borderRadius: '4px',
+                                  fontSize: '12px',
+                                  fontWeight: 'bold'
+                                }}>
+                                  {report.leaveStatus === 'off' ? '🏖️ 全天请假' : 
+                                   report.leaveStatus === 'AM leave' ? '🌅 上午请假' : 
+                                   report.leaveStatus === 'PM leave' ? '🌇 下午请假' : report.leaveStatus}
+                                </div>
+                              )}
+                              <div style={{
+                                padding: '8px',
+                                backgroundColor: 'white',
+                                borderRadius: '4px',
+                                minHeight: '40px',
+                                whiteSpace: 'pre-wrap',
+                                color: report?.content ? '#333' : '#999',
+                                fontStyle: report?.content ? 'normal' : 'italic'
+                              }}>
+                                {report?.content || '暂无日报'}
+                              </div>
                             </div>
                           )}
 
