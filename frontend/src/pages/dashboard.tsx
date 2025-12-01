@@ -20,6 +20,9 @@ export default function DashboardPage() {
   const [editContent, setEditContent] = useState('');
   const [editLeaveStatus, setEditLeaveStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [summaryContent, setSummaryContent] = useState('');
+  const [copied, setCopied] = useState(false);
   const connectionRef = useRef<signalR.HubConnection | null>(null);
   const previousDateRef = useRef<string | null>(null);
 
@@ -169,6 +172,49 @@ export default function DashboardPage() {
     setEditLeaveStatus(null);
   };
 
+  const generateSummary = () => {
+    const lines: string[] = [];
+    lines.push(`# ${selectedDate}`);
+    lines.push('');
+
+    groups.forEach(group => {
+      lines.push(`## ${group.name}`);
+      
+      // 检查请假情况
+      const membersOnLeave = group.members
+        .map(member => {
+          const report = getUserReport(member.userId);
+          return { member, leaveStatus: report?.leaveStatus || null };
+        })
+        .filter(item => item.leaveStatus !== null);
+
+      if (membersOnLeave.length === 0) {
+        lines.push('Attendance: ALL');
+      } else {
+        lines.push('Attendance: ALL except:');
+        membersOnLeave.forEach(item => {
+          lines.push(`* ${item.member.displayName}: ${item.leaveStatus}`);
+        });
+      }
+      lines.push('');
+      lines.push('Team did today:');
+
+      // 显示每个人的日报内容
+      group.members.forEach(member => {
+        const report = getUserReport(member.userId);
+        const content = report?.content?.trim();
+        if (content) {
+          lines.push(content);
+        }
+      });
+
+      lines.push('');
+    });
+
+    setSummaryContent(lines.join('\n').trim());
+    setShowSummary(true);
+  };
+
   if (!initialized || !router.isReady) {
     return null;
   }
@@ -261,6 +307,20 @@ export default function DashboardPage() {
             }}
           >
             今天
+          </button>
+          <button 
+            onClick={generateSummary}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#17a2b8',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }}
+          >
+            汇总
           </button>
         </div>
 
@@ -495,6 +555,94 @@ export default function DashboardPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 汇总对话框 */}
+      {showSummary && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            width: '80%',
+            maxWidth: '800px',
+            maxHeight: '80vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+          }}>
+            <div style={{
+              padding: '16px 20px',
+              borderBottom: '1px solid #ddd',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h2 style={{ margin: 0, fontSize: '18px' }}>日报汇总</h2>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(summaryContent);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  style={{
+                    padding: '6px 16px',
+                    backgroundColor: copied ? '#6c757d' : '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {copied ? '已复制' : '复制'}
+                </button>
+                <button
+                  onClick={() => setShowSummary(false)}
+                  style={{
+                    padding: '6px 16px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  关闭
+                </button>
+              </div>
+            </div>
+            <div style={{ padding: '16px 20px', flex: 1, overflow: 'auto' }}>
+              <textarea
+                value={summaryContent}
+                onChange={(e) => setSummaryContent(e.target.value)}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  minHeight: '400px',
+                  padding: '12px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+                  fontSize: '14px',
+                  lineHeight: '1.5',
+                  resize: 'vertical',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>

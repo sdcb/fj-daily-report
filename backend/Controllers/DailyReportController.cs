@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace FjDailyReport.Controllers;
 
@@ -23,6 +24,9 @@ public class DailyReportController(AppDB db, IHubContext<DailyReportHub> hubCont
             ? DateOnly.FromDateTime(DateTime.Today) 
             : DateOnly.Parse(date);
 
+        // 获取当前用户ID
+        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
         // 获取所有项目组及其成员
         var groups = await db.ProjectGroups
             .Include(g => g.Members)
@@ -40,6 +44,20 @@ public class DailyReportController(AppDB db, IHubContext<DailyReportHub> hubCont
                 }).ToList()
             })
             .ToListAsync();
+
+        // 按当前用户所在团队优先排序，然后按团队ID排序
+        groups = groups
+            .OrderByDescending(g => g.Members.Any(m => m.UserId == currentUserId))
+            .ThenBy(g => g.Id)
+            .ToList();
+
+        // 在每个团队中，将当前用户排在第一位
+        foreach (var group in groups)
+        {
+            group.Members = group.Members
+                .OrderByDescending(m => m.UserId == currentUserId)
+                .ToList();
+        }
 
         // 获取指定日期的所有日报
         var reports = await db.DailyReports
